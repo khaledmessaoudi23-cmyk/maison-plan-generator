@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -52,13 +52,12 @@ const buildDoorsAndWindows = (room) => {
     y2: room.y + 8,
   });
 
-  const sideWindow = {
+  windows.push({
     x1: room.x + room.width - 6,
     y1: room.y + 16,
     x2: room.x + room.width - 6,
     y2: room.y + room.height - 18,
-  };
-  windows.push(sideWindow);
+  });
 
   if (room.name.toLowerCase().includes('cuisine') || room.name.toLowerCase().includes('salon')) {
     windows.push({
@@ -142,7 +141,15 @@ export default function App() {
   const [showSketch, setShowSketch] = useState(true);
   const [strokes, setStrokes] = useState([]);
   const [currentStroke, setCurrentStroke] = useState([]);
+  const [savedProjects, setSavedProjects] = useState([]);
+  const [viewMode, setViewMode] = useState('plan');
+  const [projectName, setProjectName] = useState('Projet maison 1');
   const [plan, setPlan] = useState(() => generatePlan(120, 3, 2, 'moderne'));
+
+  useEffect(() => {
+    const saved = globalThis.localStorage ? JSON.parse(globalThis.localStorage.getItem('housePlans') || '[]') : [];
+    setSavedProjects(saved);
+  }, []);
 
   const planData = useMemo(() => {
     const totalSurface = Number(surface) || 120;
@@ -158,7 +165,30 @@ export default function App() {
   const onGenerate = () => setPlan(planData);
 
   const onSave = () => {
-    Alert.alert('Plan enregistré', 'Le plan a bien été sauvegardé dans la mémoire locale.');
+    const projects = [
+      ...savedProjects,
+      {
+        id: Date.now(),
+        name: projectName || 'Projet maison',
+        surface: Number(surface) || 120,
+        bedrooms: Number(bedrooms) || 1,
+        floors,
+        material,
+        decor,
+        cost: estimatedCost,
+      },
+    ];
+
+    setSavedProjects(projects);
+    if (globalThis.localStorage) {
+      globalThis.localStorage.setItem('housePlans', JSON.stringify(projects));
+    }
+
+    Alert.alert('Projet enregistré', 'Votre plan a été enregistré dans la mémoire locale.');
+  };
+
+  const onExport = () => {
+    Alert.alert('Export', 'Le plan peut être exporté ensuite comme image ou PDF dans une version premium.');
   };
 
   const sketchPanResponder = useRef(
@@ -188,10 +218,18 @@ export default function App() {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.headerBox}>
           <Text style={styles.title}>Maison Plan Pro</Text>
-          <Text style={styles.subtitle}>Conception de maisons multi-étages</Text>
+          <Text style={styles.subtitle}>Logiciel de conception immobilière</Text>
         </View>
 
         <View style={styles.card}>
+          <Text style={styles.label}>Nom du projet</Text>
+          <TextInput
+            style={styles.input}
+            value={projectName}
+            onChangeText={setProjectName}
+            placeholder="Maison 1"
+          />
+
           <Text style={styles.label}>Surface (m²)</Text>
           <TextInput
             style={styles.input}
@@ -249,12 +287,28 @@ export default function App() {
             ))}
           </View>
 
+          <Text style={styles.label}>Vue</Text>
+          <View style={styles.row}>
+            {['plan', '3d'].map((item) => (
+              <Pressable
+                key={item}
+                onPress={() => setViewMode(item)}
+                style={[styles.toggle, viewMode === item && styles.toggleActive]}
+              >
+                <Text style={[styles.toggleText, viewMode === item && styles.toggleTextActive]}>{item === 'plan' ? 'Plan 2D' : 'Vue 3D'}</Text>
+              </Pressable>
+            ))}
+          </View>
+
           <View style={styles.buttonRow}>
             <Pressable style={styles.primaryButton} onPress={onGenerate}>
               <Text style={styles.primaryButtonText}>Générer</Text>
             </Pressable>
             <Pressable style={styles.secondaryButton} onPress={onSave}>
               <Text style={styles.secondaryButtonText}>Enregistrer</Text>
+            </Pressable>
+            <Pressable style={styles.secondaryButton} onPress={onExport}>
+              <Text style={styles.secondaryButtonText}>Exporter</Text>
             </Pressable>
           </View>
         </View>
@@ -269,6 +323,18 @@ export default function App() {
           <Text style={styles.summaryText}>Coût estimé : {estimatedCost.toLocaleString()} €</Text>
         </View>
 
+        {savedProjects.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Projets enregistrés</Text>
+            {savedProjects.map((project) => (
+              <View key={project.id} style={styles.savedItem}>
+                <Text style={styles.savedItemTitle}>{project.name}</Text>
+                <Text style={styles.savedItemText}>{project.surface} m² · {project.bedrooms} chambres · {project.floors} étages</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Plan détaillé</Text>
@@ -277,105 +343,117 @@ export default function App() {
             </Pressable>
           </View>
 
-          <View style={styles.planContainer}>
-            <Svg width={PLAN_WIDTH} height={PLAN_HEIGHT} viewBox={`0 0 ${PLAN_WIDTH} ${PLAN_HEIGHT}`}>
-              <Rect x={0} y={0} width={PLAN_WIDTH} height={PLAN_HEIGHT} rx={18} fill="#edf4ff" />
+          {viewMode === 'plan' ? (
+            <View style={styles.planContainer}>
+              <Svg width={PLAN_WIDTH} height={PLAN_HEIGHT} viewBox={`0 0 ${PLAN_WIDTH} ${PLAN_HEIGHT}`}>
+                <Rect x={0} y={0} width={PLAN_WIDTH} height={PLAN_HEIGHT} rx={18} fill="#edf4ff" />
 
-              {plan.rooms.map((room, index) => (
-                <G key={`${room.name}-${index}`}>
-                  <Rect
-                    x={room.x}
-                    y={room.y}
-                    width={room.width}
-                    height={room.height}
-                    rx={10}
-                    fill={room.fill}
-                    stroke="#1d3557"
-                    strokeWidth={1.5}
-                  />
-
-                  {(room.windows || []).map((window, idx) => (
-                    <Line
-                      key={`win-${idx}`}
-                      x1={window.x1}
-                      y1={window.y1}
-                      x2={window.x2}
-                      y2={window.y2}
-                      stroke="#4d8fd6"
-                      strokeWidth={2}
-                      strokeLinecap="round"
+                {plan.rooms.map((room, index) => (
+                  <G key={`${room.name}-${index}`}>
+                    <Rect
+                      x={room.x}
+                      y={room.y}
+                      width={room.width}
+                      height={room.height}
+                      rx={10}
+                      fill={room.fill}
+                      stroke="#1d3557"
+                      strokeWidth={1.5}
                     />
-                  ))}
 
-                  {(room.doors || []).map((door, idx) => (
-                    <Line
-                      key={`door-${idx}`}
-                      x1={door.x1}
-                      y1={door.y1}
-                      x2={door.x2}
-                      y2={door.y2}
-                      stroke="#2b3a55"
-                      strokeWidth={2.5}
-                      strokeLinecap="round"
-                    />
-                  ))}
+                    {(room.windows || []).map((window, idx) => (
+                      <Line
+                        key={`win-${idx}`}
+                        x1={window.x1}
+                        y1={window.y1}
+                        x2={window.x2}
+                        y2={window.y2}
+                        stroke="#4d8fd6"
+                        strokeWidth={2}
+                        strokeLinecap="round"
+                      />
+                    ))}
 
-                  <Circle cx={room.x + room.width * 0.72} cy={room.y + room.height * 0.65} r={3} fill="#f8f9fa" stroke="#2b3a55" />
+                    {(room.doors || []).map((door, idx) => (
+                      <Line
+                        key={`door-${idx}`}
+                        x1={door.x1}
+                        y1={door.y1}
+                        x2={door.x2}
+                        y2={door.y2}
+                        stroke="#2b3a55"
+                        strokeWidth={2.5}
+                        strokeLinecap="round"
+                      />
+                    ))}
 
-                  <SvgText
-                    x={room.x + 8}
-                    y={room.y + 18}
-                    fill="#112033"
-                    fontSize="10"
-                    fontWeight="700"
-                  >
-                    {room.name}
-                  </SvgText>
-                  <SvgText
-                    x={room.x + 8}
-                    y={room.y + 30}
-                    fill="#112033"
-                    fontSize="9"
-                  >
-                    {room.area} m²
-                  </SvgText>
-                </G>
-              ))}
+                    <Circle cx={room.x + room.width * 0.72} cy={room.y + room.height * 0.65} r={3} fill="#f8f9fa" stroke="#2b3a55" />
+
+                    <SvgText
+                      x={room.x + 8}
+                      y={room.y + 18}
+                      fill="#112033"
+                      fontSize="10"
+                      fontWeight="700"
+                    >
+                      {room.name}
+                    </SvgText>
+                    <SvgText
+                      x={room.x + 8}
+                      y={room.y + 30}
+                      fill="#112033"
+                      fontSize="9"
+                    >
+                      {room.area} m²
+                    </SvgText>
+                  </G>
+                ))}
+
+                {showSketch && (
+                  <>
+                    {strokes.map((stroke, index) => (
+                      <Polyline
+                        key={index}
+                        points={stroke.map((point) => `${point.x},${point.y}`).join(' ')}
+                        fill="none"
+                        stroke="#0d1b2a"
+                        strokeWidth={2.5}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    ))}
+                    {currentStroke.length > 1 && (
+                      <Polyline
+                        points={currentStroke.map((point) => `${point.x},${point.y}`).join(' ')}
+                        fill="none"
+                        stroke="#0d1b2a"
+                        strokeWidth={2.5}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    )}
+                  </>
+                )}
+              </Svg>
 
               {showSketch && (
-                <>
-                  {strokes.map((stroke, index) => (
-                    <Polyline
-                      key={index}
-                      points={stroke.map((point) => `${point.x},${point.y}`).join(' ')}
-                      fill="none"
-                      stroke="#0d1b2a"
-                      strokeWidth={2.5}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  ))}
-                  {currentStroke.length > 1 && (
-                    <Polyline
-                      points={currentStroke.map((point) => `${point.x},${point.y}`).join(' ')}
-                      fill="none"
-                      stroke="#0d1b2a"
-                      strokeWidth={2.5}
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  )}
-                </>
+                <View
+                  {...sketchPanResponder.panHandlers}
+                  style={styles.sketchOverlay}
+                />
               )}
-            </Svg>
-
-            {showSketch && (
-              <View
-                {...sketchPanResponder.panHandlers}
-                style={styles.sketchOverlay}
-              />
-            )}
-          </View>
+            </View>
+          ) : (
+            <View style={styles.threeDBox}>
+              <Text style={styles.threeDTitle}>Vue 3D</Text>
+              <View style={styles.threeDHouse}>
+                <View style={styles.threeDFloor} />
+                <View style={styles.threeDFloorTwo} />
+              </View>
+              <Text style={styles.threeDText}>Style : {STYLES[decor].label}</Text>
+              <Text style={styles.threeDText}>Matériau : {MATERIALS[material].label}</Text>
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -531,6 +609,22 @@ const styles = StyleSheet.create({
     color: '#eef6ff',
     fontSize: 18,
     fontWeight: '800',
+    marginBottom: 8,
+  },
+  savedItem: {
+    backgroundColor: '#183253',
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 8,
+  },
+  savedItemTitle: {
+    color: '#f3f8ff',
+    fontWeight: '700',
+  },
+  savedItemText: {
+    color: '#cfe2ff',
+    marginTop: 4,
+    fontSize: 12,
   },
   planContainer: {
     position: 'relative',
@@ -548,5 +642,52 @@ const styles = StyleSheet.create({
     right: 10,
     bottom: 10,
     backgroundColor: 'transparent',
+  },
+  threeDBox: {
+    backgroundColor: '#edf4ff',
+    borderRadius: 18,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  threeDTitle: {
+    color: '#132338',
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 16,
+  },
+  threeDHouse: {
+    width: 220,
+    height: 140,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#dfeafc',
+    borderRadius: 16,
+    position: 'relative',
+  },
+  threeDFloor: {
+    width: 160,
+    height: 70,
+    backgroundColor: '#7aa7d8',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#254466',
+    position: 'absolute',
+    top: 34,
+  },
+  threeDFloorTwo: {
+    width: 120,
+    height: 52,
+    backgroundColor: '#a7d4ff',
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#254466',
+    position: 'absolute',
+    top: 12,
+  },
+  threeDText: {
+    color: '#132338',
+    marginTop: 12,
+    fontWeight: '700',
   },
 });
