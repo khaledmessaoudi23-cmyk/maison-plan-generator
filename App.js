@@ -9,6 +9,7 @@ import {
   Pressable,
   PanResponder,
   Alert,
+  Share,
 } from 'react-native';
 import Svg, { Rect, Text as SvgText, Polyline, G, Line, Circle } from 'react-native-svg';
 import { StatusBar } from 'expo-status-bar';
@@ -98,7 +99,7 @@ const getAdvancedRooms = (surface, bedrooms, floors, levelIndex) => {
   return advanced;
 };
 
-const generateFloorRooms = (surface, bedrooms, floors, levelIndex, decorStyle) => {
+const generateFloorRooms = (surface, bedrooms, floors, levelIndex) => {
   const rooms = [];
 
   if (levelIndex === 0) {
@@ -154,7 +155,6 @@ const generateFloorRooms = (surface, bedrooms, floors, levelIndex, decorStyle) =
       height,
       area: Math.round(room.area),
       fill: ROOM_PALETTE[index % ROOM_PALETTE.length],
-      style: decorStyle,
     };
 
     const { doors, windows } = buildDoorsAndWindows(block);
@@ -168,8 +168,7 @@ const generateFloorRooms = (surface, bedrooms, floors, levelIndex, decorStyle) =
 const generateMultiFloorPlan = (surface, bedrooms, floors, decorStyle) => {
   const generatedFloors = Array.from({ length: floors }, (_, levelIndex) => {
     const levelSurface = Math.max(28, surface / Math.max(1, floors));
-    const roomBlocks = generateFloorRooms(levelSurface, bedrooms, floors, levelIndex, decorStyle);
-
+    const roomBlocks = generateFloorRooms(levelSurface, bedrooms, floors, levelIndex);
     const totalArea = roomBlocks.reduce((sum, room) => sum + room.area, 0);
     const levelName = levelIndex === 0 ? 'Rez-de-chaussée' : `Étage ${levelIndex}`;
 
@@ -203,6 +202,7 @@ export default function App() {
   const [projectName, setProjectName] = useState('Projet maison 1');
   const [selectedFloor, setSelectedFloor] = useState(0);
   const [plan, setPlan] = useState(() => generateMultiFloorPlan(120, 3, 2, 'moderne'));
+  const [isSharing, setIsSharing] = useState(false);
 
   useEffect(() => {
     if (globalThis.localStorage) {
@@ -251,8 +251,26 @@ export default function App() {
     Alert.alert('Projet enregistré', 'Votre plan a été enregistré.');
   };
 
+  const handleShare = async () => {
+    setIsSharing(true);
+    try {
+      const shareText = `Maison Plan Pro\nProjet: ${projectName}\nSurface: ${surface || '120'} m²\nChambres: ${bedrooms || '3'}\nÉtages: ${floors}\nCoût estimé: ${estimatedCost.toLocaleString()} €`;
+      await Share.share({
+        message: shareText,
+        title: 'Plan de maison généré',
+      });
+    } catch (error) {
+      Alert.alert('Partage impossible', 'Le partage a été annulé.');
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
   const onExport = () => {
-    Alert.alert('Export', 'Le plan peut être exporté comme image ou PDF dans la suite premium.');
+    Alert.alert(
+      'Export premium',
+      `Projet prêt pour présentation.\nNom: ${projectName}\nSurface: ${surface || '120'} m²\nCoût: ${estimatedCost.toLocaleString()} €`,
+    );
   };
 
   const sketchPanResponder = useRef(
@@ -378,6 +396,12 @@ export default function App() {
             </Pressable>
             <Pressable style={styles.secondaryButton} onPress={onExport}>
               <Text style={styles.secondaryButtonText}>Exporter</Text>
+            </Pressable>
+          </View>
+
+          <View style={styles.buttonRowSingle}>
+            <Pressable style={[styles.shareButton, isSharing && styles.shareButtonDisabled]} onPress={handleShare}>
+              <Text style={styles.shareButtonText}>{isSharing ? 'Partage...' : 'Partager le plan'}</Text>
             </Pressable>
           </View>
         </View>
@@ -689,6 +713,9 @@ const styles = StyleSheet.create({
     gap: 10,
     marginTop: 18,
   },
+  buttonRowSingle: {
+    marginTop: 14,
+  },
   primaryButton: {
     flex: 1,
     backgroundColor: '#7ee081',
@@ -720,8 +747,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
+  shareButton: {
+    backgroundColor: '#f6c453',
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#f7d987',
+  },
+  shareButtonDisabled: {
+    opacity: 0.6,
+  },
+  shareButtonText: {
+    color: '#101d2e',
+    fontSize: 15,
+    fontWeight: '800',
+  },
   summaryCard: {
-    backgroundColor: 'linear-gradient(135deg, #12243f, #0d1d2a)',
+    backgroundColor: '#12243f',
     borderRadius: 18,
     padding: 16,
     marginBottom: 16,
