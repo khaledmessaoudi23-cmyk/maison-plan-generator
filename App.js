@@ -42,8 +42,7 @@ const buildDoorsAndWindows = (room) => {
   const doors = [];
   const windows = [];
 
-  const doorY = room.y + room.height - 8;
-  doors.push({ x1: room.x + 12, y1: doorY, x2: room.x + 28, y2: doorY });
+  doors.push({ x1: room.x + 12, y1: room.y + room.height - 8, x2: room.x + 30, y2: room.y + room.height - 8 });
 
   windows.push({
     x1: room.x + 10,
@@ -71,6 +70,16 @@ const buildDoorsAndWindows = (room) => {
   return { doors, windows };
 };
 
+const getAdvancedRooms = (surface, bedrooms, floors) => {
+  const advanced = [];
+  if (surface > 100) advanced.push({ name: 'Garage', area: Math.max(12, surface * 0.09) });
+  if (surface > 90) advanced.push({ name: 'Terrasse', area: Math.max(10, surface * 0.08) });
+  if (bedrooms >= 2) advanced.push({ name: 'Bureau', area: Math.max(10, surface * 0.07) });
+  if (floors >= 2) advanced.push({ name: 'Balcon', area: Math.max(8, surface * 0.05) });
+  if (surface > 130) advanced.push({ name: 'Salle de sport', area: Math.max(12, surface * 0.07) });
+  return advanced;
+};
+
 const generatePlan = (surface, bedrooms, floors, decorStyle) => {
   const rooms = [];
   const requiredRooms = [
@@ -89,11 +98,13 @@ const generatePlan = (surface, bedrooms, floors, decorStyle) => {
     });
   }
 
+  const extras = getAdvancedRooms(surface, bedrooms, floors);
+  extras.forEach((extra) => rooms.push(extra));
+
   const totalUsed = rooms.reduce((sum, room) => sum + room.area, 0);
   const remaining = Math.max(0, surface - totalUsed);
   if (remaining > 0) {
-    rooms.push({ name: 'Bureau', area: remaining * 0.55 });
-    rooms.push({ name: 'Dépendance', area: remaining * 0.45 });
+    rooms.push({ name: 'Dépendance', area: remaining * 0.6 });
   }
 
   const roomBlocks = [];
@@ -101,8 +112,8 @@ const generatePlan = (surface, bedrooms, floors, decorStyle) => {
   let y = 16;
 
   rooms.forEach((room, index) => {
-    const width = clamp((room.area / Math.max(1, surface)) * 180, 38, 96);
-    const height = clamp((room.area / Math.max(1, surface)) * 140, 26, 68);
+    const width = clamp((room.area / Math.max(1, surface)) * 180, 34, 96);
+    const height = clamp((room.area / Math.max(1, surface)) * 140, 24, 68);
 
     if (x + width > 280) {
       x = 18;
@@ -147,8 +158,10 @@ export default function App() {
   const [plan, setPlan] = useState(() => generatePlan(120, 3, 2, 'moderne'));
 
   useEffect(() => {
-    const saved = globalThis.localStorage ? JSON.parse(globalThis.localStorage.getItem('housePlans') || '[]') : [];
-    setSavedProjects(saved);
+    if (globalThis.localStorage) {
+      const data = JSON.parse(globalThis.localStorage.getItem('housePlans') || '[]');
+      setSavedProjects(data);
+    }
   }, []);
 
   const planData = useMemo(() => {
@@ -183,12 +196,11 @@ export default function App() {
     if (globalThis.localStorage) {
       globalThis.localStorage.setItem('housePlans', JSON.stringify(projects));
     }
-
-    Alert.alert('Projet enregistré', 'Votre plan a été enregistré dans la mémoire locale.');
+    Alert.alert('Projet enregistré', 'Votre plan a été enregistré.');
   };
 
   const onExport = () => {
-    Alert.alert('Export', 'Le plan peut être exporté ensuite comme image ou PDF dans une version premium.');
+    Alert.alert('Export', 'Le plan peut être exporté comme image ou PDF dans la suite premium.');
   };
 
   const sketchPanResponder = useRef(
@@ -218,7 +230,7 @@ export default function App() {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.headerBox}>
           <Text style={styles.title}>Maison Plan Pro</Text>
-          <Text style={styles.subtitle}>Logiciel de conception immobilière</Text>
+          <Text style={styles.subtitle}>Conception logicielle de maisons</Text>
         </View>
 
         <View style={styles.card}>
