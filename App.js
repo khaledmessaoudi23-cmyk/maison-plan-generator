@@ -8,24 +8,38 @@ import {
   View,
   Pressable,
   PanResponder,
-  Dimensions,
 } from 'react-native';
 import Svg, { Rect, Text as SvgText, Polyline, G } from 'react-native-svg';
 import { StatusBar } from 'expo-status-bar';
 
-const { width } = Dimensions.get('window');
-const PLAN_WIDTH = 360;
+const PLAN_WIDTH = 340;
 const PLAN_HEIGHT = 240;
 
 const MATERIALS = {
-  standard: { label: 'Standard', color: '#7ee081', multiplier: 1 },
-  premium: { label: 'Premium', color: '#f7c66b', multiplier: 1.35 },
-  luxury: { label: 'Luxe', color: '#d8a8ff', multiplier: 1.75 },
+  standard: { label: 'Standard', multiplier: 1, accent: '#7ee081' },
+  premium: { label: 'Premium', multiplier: 1.35, accent: '#f6c453' },
+  luxury: { label: 'Luxe', multiplier: 1.75, accent: '#d8a8ff' },
+};
+
+const STYLES = {
+  scandinave: { label: 'Scandinave', accent: '#bfe7ff' },
+  moderne: { label: 'Moderne', accent: '#c9f7d5' },
+  classique: { label: 'Classique', accent: '#f9d7b3' },
+  luxe: { label: 'Luxe', accent: '#e6d2ff' },
 };
 
 const ROOM_PALETTE = ['#8ecae6', '#bde0fe', '#a2d2ff', '#90e0ef', '#f7d6e0', '#d4f1f4', '#cfe1b9'];
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+const getRoomArea = (surface, bedrooms, index) => {
+  const base = surface / Math.max(1, bedrooms + 2);
+  if (index === 0) return Math.max(22, surface * 0.28);
+  if (index === 1) return Math.max(12, surface * 0.14);
+  if (index === 2) return Math.max(8, surface * 0.1);
+  if (index === 3) return Math.max(7, surface * 0.08);
+  return Math.max(10, base + (index % 2 === 0 ? 4 : 2));
+};
 
 const getEstimatedCost = (surface, bedrooms, floors, material) => {
   const base = surface * (220 + bedrooms * 35) * floors;
@@ -33,71 +47,63 @@ const getEstimatedCost = (surface, bedrooms, floors, material) => {
 };
 
 const generatePlan = (surface, bedrooms, floors) => {
-  const totalRooms = Math.max(4, bedrooms + 3);
-  const livingArea = Math.max(22, surface * 0.28);
-  const kitchenArea = Math.max(12, surface * 0.14);
-  const bathArea = Math.max(8, surface * 0.1);
-  const hallArea = Math.max(7, surface * 0.07);
+  const rooms = [];
+  const requiredRooms = [
+    { name: 'Salon', area: Math.max(22, surface * 0.28) },
+    { name: 'Cuisine', area: Math.max(12, surface * 0.14) },
+    { name: 'Salle de bain', area: Math.max(8, surface * 0.1) },
+    { name: 'Entrée', area: Math.max(7, surface * 0.08) },
+  ];
 
-  const roomAreas = [];
-  roomAreas.push({ name: 'Salon', area: livingArea });
-  roomAreas.push({ name: 'Cuisine', area: kitchenArea });
-  roomAreas.push({ name: 'Salle de bain', area: bathArea });
-  roomAreas.push({ name: 'Entrée', area: hallArea });
+  requiredRooms.forEach((room) => rooms.push(room));
 
   for (let i = 0; i < bedrooms; i += 1) {
-    roomAreas.push({
+    rooms.push({
       name: `Chambre ${i + 1}`,
-      area: Math.max(12, surface / (bedrooms + 2) + (i % 2 === 0 ? 7 : 3)),
+      area: Math.max(12, surface / Math.max(1, bedrooms + 2) + (i % 2 === 0 ? 5 : 2)),
     });
   }
 
-  const remaining = Math.max(0, surface - roomAreas.reduce((sum, room) => sum + room.area, 0));
+  const totalUsed = rooms.reduce((sum, room) => sum + room.area, 0);
+  const remaining = Math.max(0, surface - totalUsed);
   if (remaining > 0) {
-    roomAreas.push({ name: 'Suite / bureau', area: remaining * 0.5 });
-    roomAreas.push({ name: 'Dépendance', area: remaining * 0.5 });
+    rooms.push({ name: 'Bureau', area: remaining * 0.55 });
+    rooms.push({ name: 'Dépendance', area: remaining * 0.45 });
   }
 
-  const scale = 100 / Math.max(1, roomAreas.reduce((sum, room) => sum + room.area, 0));
+  const roomBlocks = [];
+  let x = 18;
+  let y = 16;
+  let row = 0;
 
-  const rects = [];
-  let x = 6;
-  let y = 8;
-  let currentRow = 0;
+  rooms.forEach((room, index) => {
+    const maxWidth = 88;
+    const maxHeight = 62;
+    const width = clamp((room.area / Math.max(1, surface)) * 180, 36, maxWidth);
+    const height = clamp((room.area / Math.max(1, surface)) * 140, 26, maxHeight);
 
-  roomAreas.forEach((room, index) => {
-    const width = clamp((room.area * scale) * 2.2, 16, 38);
-    const height = clamp((room.area * scale) * 1.7, 16, 34);
-
-    if (x + width > 80) {
-      x = 6;
-      y += 28;
-      currentRow += 1;
+    if (x + width > 280) {
+      x = 18;
+      y += 70;
+      row += 1;
     }
 
-    const rect = {
+    roomBlocks.push({
       ...room,
       x,
       y,
       width,
       height,
+      area: Math.round(room.area),
       fill: ROOM_PALETTE[index % ROOM_PALETTE.length],
-    };
+    });
 
-    rects.push(rect);
-    x += width + 6;
+    x += width + 18;
   });
 
   return {
     title: `${floors} étage${floors > 1 ? 's' : ''}`,
-    rooms: rects.map((room) => ({
-      ...room,
-      area: Math.round(room.area),
-      x: room.x,
-      y: room.y,
-      width: room.width,
-      height: room.height,
-    })),
+    rooms: roomBlocks,
   };
 };
 
@@ -106,12 +112,11 @@ export default function App() {
   const [bedrooms, setBedrooms] = useState('3');
   const [floors, setFloors] = useState(1);
   const [material, setMaterial] = useState('premium');
-  const [plan, setPlan] = useState(() =>
-    generatePlan(120, 3, 1),
-  );
-  const [showSketch, setShowSketch] = useState(false);
+  const [decor, setDecor] = useState('moderne');
+  const [showSketch, setShowSketch] = useState(true);
   const [strokes, setStrokes] = useState([]);
   const [currentStroke, setCurrentStroke] = useState([]);
+  const [plan, setPlan] = useState(() => generatePlan(120, 3, 1));
 
   const planData = useMemo(() => {
     const totalSurface = Number(surface) || 120;
@@ -152,8 +157,8 @@ export default function App() {
       <StatusBar style="light" />
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.headerBox}>
-          <Text style={styles.title}>Maison Plan</Text>
-          <Text style={styles.subtitle}>Générateur intelligent de plans</Text>
+          <Text style={styles.title}>Maison Plan Pro</Text>
+          <Text style={styles.subtitle}>Création assistée de plans de maison</Text>
         </View>
 
         <View style={styles.card}>
@@ -175,7 +180,7 @@ export default function App() {
             placeholder="3"
           />
 
-          <Text style={styles.label}>Nombre d'étages</Text>
+          <Text style={styles.label}>Étages</Text>
           <View style={styles.row}>
             {[1, 2, 3].map((item) => (
               <Pressable
@@ -194,9 +199,22 @@ export default function App() {
               <Pressable
                 key={key}
                 onPress={() => setMaterial(key)}
-                style={[styles.materialButton, material === key && styles.materialButtonActive]}
+                style={[styles.chip, material === key && styles.chipActive, { borderColor: value.accent }]}
               >
-                <Text style={styles.materialText}>{value.label}</Text>
+                <Text style={styles.chipText}>{value.label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={styles.label}>Style de décoration</Text>
+          <View style={styles.rowWrap}>
+            {Object.entries(STYLES).map(([key, value]) => (
+              <Pressable
+                key={key}
+                onPress={() => setDecor(key)}
+                style={[styles.chip, decor === key && styles.chipActive, { borderColor: value.accent }]}
+              >
+                <Text style={styles.chipText}>{value.label}</Text>
               </Pressable>
             ))}
           </View>
@@ -207,48 +225,50 @@ export default function App() {
         </View>
 
         <View style={styles.summaryCard}>
-          <Text style={styles.summaryTitle}>Résumé</Text>
+          <Text style={styles.summaryTitle}>Récapitulatif</Text>
           <Text style={styles.summaryText}>Surface : {surface || '120'} m²</Text>
           <Text style={styles.summaryText}>Chambres : {bedrooms || '3'}</Text>
           <Text style={styles.summaryText}>Étages : {floors}</Text>
-          <Text style={styles.summaryText}>Matériel : {MATERIALS[material].label}</Text>
-          <Text style={styles.summaryText}>Coût estimé : {estimatedCost.toLocaleString()} €</Text>
+          <Text style={styles.summaryText}>Matériau : {MATERIALS[material].label}</Text>
+          <Text style={styles.summaryText}>Style : {STYLES[decor].label}</Text>
+          <Text style={styles.summaryText}>Coût : {estimatedCost.toLocaleString()} €</Text>
         </View>
 
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Plan détaillé</Text>
             <Pressable onPress={() => setShowSketch((v) => !v)} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>{showSketch ? 'Fermer croquis' : 'Ajouter croquis'}</Text>
+              <Text style={styles.secondaryButtonText}>{showSketch ? 'Masquer croquis' : 'Ajouter croquis'}</Text>
             </Pressable>
           </View>
 
-          <View style={styles.planWrapper}>
+          <View style={styles.planContainer}>
             <Svg width={PLAN_WIDTH} height={PLAN_HEIGHT} viewBox={`0 0 ${PLAN_WIDTH} ${PLAN_HEIGHT}`}>
+              <Rect x={0} y={0} width={PLAN_WIDTH} height={PLAN_HEIGHT} rx={18} fill="#edf4ff" />
               {plan.rooms.map((room, index) => (
                 <G key={`${room.name}-${index}`}>
                   <Rect
-                    x={room.x * 3.2}
-                    y={room.y * 2.4}
-                    width={room.width * 3.2}
-                    height={room.height * 2.4}
-                    rx={8}
+                    x={room.x}
+                    y={room.y}
+                    width={room.width}
+                    height={room.height}
+                    rx={10}
                     fill={room.fill}
                     stroke="#1d3557"
                     strokeWidth={1.5}
                   />
                   <SvgText
-                    x={room.x * 3.2 + 8}
-                    y={room.y * 2.4 + 18}
+                    x={room.x + 8}
+                    y={room.y + 18}
                     fill="#112033"
-                    fontSize="11"
+                    fontSize="10"
                     fontWeight="700"
                   >
                     {room.name}
                   </SvgText>
                   <SvgText
-                    x={room.x * 3.2 + 8}
-                    y={room.y * 2.4 + 30}
+                    x={room.x + 8}
+                    y={room.y + 30}
                     fill="#112033"
                     fontSize="9"
                   >
@@ -259,13 +279,13 @@ export default function App() {
 
               {showSketch && (
                 <>
-                  {strokes.map((stroke, strokeIndex) => (
+                  {strokes.map((stroke, index) => (
                     <Polyline
-                      key={strokeIndex}
+                      key={index}
                       points={stroke.map((point) => `${point.x},${point.y}`).join(' ')}
                       fill="none"
                       stroke="#0d1b2a"
-                      strokeWidth={2}
+                      strokeWidth={2.5}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
@@ -275,7 +295,7 @@ export default function App() {
                       points={currentStroke.map((point) => `${point.x},${point.y}`).join(' ')}
                       fill="none"
                       stroke="#0d1b2a"
-                      strokeWidth={2}
+                      strokeWidth={2.5}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
@@ -283,14 +303,14 @@ export default function App() {
                 </>
               )}
             </Svg>
-          </View>
 
-          {showSketch && (
-            <View
-              {...sketchPanResponder.panHandlers}
-              style={styles.sketchBoard}
-            />
-          )}
+            {showSketch && (
+              <View
+                {...sketchPanResponder.panHandlers}
+                style={styles.sketchOverlay}
+              />
+            )}
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -307,15 +327,15 @@ const styles = StyleSheet.create({
     paddingBottom: 50,
   },
   headerBox: {
-    marginBottom: 16,
+    marginBottom: 18,
   },
   title: {
+    color: '#f7f9fc',
     fontSize: 30,
     fontWeight: '800',
-    color: '#f7f9fc',
   },
   subtitle: {
-    color: '#c5d1e8',
+    color: '#c9d8ef',
     fontSize: 15,
     marginTop: 4,
   },
@@ -371,19 +391,21 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 10,
   },
-  materialButton: {
+  chip: {
     backgroundColor: '#1d2c46',
+    borderWidth: 1.5,
+    borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 10,
     marginRight: 8,
     marginBottom: 8,
   },
-  materialButtonActive: {
-    backgroundColor: '#8ecae6',
+  chipActive: {
+    backgroundColor: '#12243f',
+    borderColor: '#8ecae6',
   },
-  materialText: {
-    color: '#ebf2ff',
+  chipText: {
+    color: '#edf4ff',
     fontWeight: '700',
   },
   primaryButton: {
@@ -438,20 +460,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  planWrapper: {
+  planContainer: {
+    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#edf4ff',
-    borderRadius: 14,
+    borderRadius: 18,
     padding: 10,
     overflow: 'hidden',
   },
-  sketchBoard: {
-    height: 130,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 12,
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: '#cad5e2',
+  sketchOverlay: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    right: 10,
+    bottom: 10,
+    backgroundColor: 'transparent',
   },
 });
