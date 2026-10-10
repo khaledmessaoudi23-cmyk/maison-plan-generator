@@ -42,7 +42,12 @@ const buildDoorsAndWindows = (room) => {
   const doors = [];
   const windows = [];
 
-  doors.push({ x1: room.x + 12, y1: room.y + room.height - 8, x2: room.x + 30, y2: room.y + room.height - 8 });
+  doors.push({
+    x1: room.x + 12,
+    y1: room.y + room.height - 8,
+    x2: room.x + 30,
+    y2: room.y + room.height - 8,
+  });
 
   windows.push({
     x1: room.x + 10,
@@ -70,50 +75,65 @@ const buildDoorsAndWindows = (room) => {
   return { doors, windows };
 };
 
-const getAdvancedRooms = (surface, bedrooms, floors) => {
+const getAdvancedRooms = (surface, bedrooms, floors, levelIndex) => {
   const advanced = [];
-  if (surface > 100) advanced.push({ name: 'Garage', area: Math.max(12, surface * 0.09) });
-  if (surface > 90) advanced.push({ name: 'Terrasse', area: Math.max(10, surface * 0.08) });
-  if (bedrooms >= 2) advanced.push({ name: 'Bureau', area: Math.max(10, surface * 0.07) });
-  if (floors >= 2) advanced.push({ name: 'Balcon', area: Math.max(8, surface * 0.05) });
-  if (surface > 130) advanced.push({ name: 'Salle de sport', area: Math.max(12, surface * 0.07) });
+
+  if (levelIndex === 0 && surface > 100) {
+    advanced.push({ name: 'Garage', area: Math.max(12, surface * 0.09) });
+    advanced.push({ name: 'Terrasse', area: Math.max(9, surface * 0.08) });
+  }
+
+  if (levelIndex > 0 && floors >= 2) {
+    advanced.push({ name: 'Balcon', area: Math.max(8, surface * 0.05) });
+  }
+
+  if (bedrooms >= 2 && levelIndex > 0) {
+    advanced.push({ name: 'Bureau', area: Math.max(10, surface * 0.07) });
+  }
+
+  if (surface > 130 && levelIndex >= 1) {
+    advanced.push({ name: 'Salle de sport', area: Math.max(12, surface * 0.07) });
+  }
+
   return advanced;
 };
 
-const generatePlan = (surface, bedrooms, floors, decorStyle) => {
+const generateFloorRooms = (surface, bedrooms, floors, levelIndex, decorStyle) => {
   const rooms = [];
-  const requiredRooms = [
-    { name: 'Salon', area: Math.max(22, surface * 0.28) },
-    { name: 'Cuisine', area: Math.max(12, surface * 0.14) },
-    { name: 'Salle de bain', area: Math.max(8, surface * 0.1) },
-    { name: 'Entrée', area: Math.max(7, surface * 0.08) },
-  ];
 
-  requiredRooms.forEach((room) => rooms.push(room));
-
-  for (let i = 0; i < bedrooms; i += 1) {
-    rooms.push({
-      name: `Chambre ${i + 1}`,
-      area: Math.max(12, surface / Math.max(1, bedrooms + 2) + (i % 2 === 0 ? 5 : 2)),
-    });
+  if (levelIndex === 0) {
+    rooms.push({ name: 'Salon', area: Math.max(24, surface * 0.26) });
+    rooms.push({ name: 'Cuisine', area: Math.max(12, surface * 0.14) });
+    rooms.push({ name: 'Salle de bain', area: Math.max(8, surface * 0.1) });
+    rooms.push({ name: 'Entrée', area: Math.max(7, surface * 0.08) });
+    for (let i = 0; i < Math.min(2, bedrooms); i += 1) {
+      rooms.push({ name: `Chambre ${i + 1}`, area: Math.max(12, surface / Math.max(1, bedrooms + 2) + (i % 2 === 0 ? 4 : 2)) });
+    }
+  } else {
+    const upperBedroomCount = Math.max(1, bedrooms - (levelIndex === 1 ? 1 : 0));
+    for (let i = 0; i < upperBedroomCount; i += 1) {
+      rooms.push({ name: `Chambre ${i + 1}`, area: Math.max(12, surface / Math.max(1, bedrooms + 2) + (i % 2 === 0 ? 4 : 2)) });
+    }
+    rooms.push({ name: 'Salle de bain', area: Math.max(8, surface * 0.1) });
+    rooms.push({ name: 'Dressing', area: Math.max(7, surface * 0.08) });
   }
 
-  const extras = getAdvancedRooms(surface, bedrooms, floors);
+  const extras = getAdvancedRooms(surface, bedrooms, floors, levelIndex);
   extras.forEach((extra) => rooms.push(extra));
 
   const totalUsed = rooms.reduce((sum, room) => sum + room.area, 0);
   const remaining = Math.max(0, surface - totalUsed);
-  if (remaining > 0) {
-    rooms.push({ name: 'Dépendance', area: remaining * 0.6 });
+  if (remaining > 0 && levelIndex === 0) {
+    rooms.push({ name: 'Dépendance', area: remaining * 0.7 });
   }
 
   const roomBlocks = [];
   let x = 18;
-  let y = 16;
+  let y = 18;
 
   rooms.forEach((room, index) => {
     const width = clamp((room.area / Math.max(1, surface)) * 180, 34, 96);
-    const height = clamp((room.area / Math.max(1, surface)) * 140, 24, 68);
+    const height = clamp((room.area / Math.max(1, surface)) * 135, 24, 70);
 
     if (x + width > 280) {
       x = 18;
@@ -133,13 +153,33 @@ const generatePlan = (surface, bedrooms, floors, decorStyle) => {
 
     const { doors, windows } = buildDoorsAndWindows(block);
     roomBlocks.push({ ...block, doors, windows });
-
     x += width + 18;
+  });
+
+  return roomBlocks;
+};
+
+const generateMultiFloorPlan = (surface, bedrooms, floors, decorStyle) => {
+  const generatedFloors = Array.from({ length: floors }, (_, levelIndex) => {
+    const levelSurface = Math.max(28, surface / Math.max(1, floors));
+    const roomBlocks = generateFloorRooms(levelSurface, bedrooms, floors, levelIndex, decorStyle);
+
+    const totalArea = roomBlocks.reduce((sum, room) => sum + room.area, 0);
+    const levelName = levelIndex === 0 ? 'Rez-de-chaussée' : `Étage ${levelIndex}`;
+
+    return {
+      id: levelIndex,
+      name: levelName,
+      surface: Math.round(totalArea),
+      rooms: roomBlocks,
+      index: levelIndex,
+      estimatedCost: Math.round((totalArea * 220 + bedrooms * 6000) * MATERIALS.premium.multiplier),
+    };
   });
 
   return {
     title: `${floors} étage${floors > 1 ? 's' : ''}`,
-    rooms: roomBlocks,
+    floors: generatedFloors,
   };
 };
 
@@ -155,7 +195,8 @@ export default function App() {
   const [savedProjects, setSavedProjects] = useState([]);
   const [viewMode, setViewMode] = useState('plan');
   const [projectName, setProjectName] = useState('Projet maison 1');
-  const [plan, setPlan] = useState(() => generatePlan(120, 3, 2, 'moderne'));
+  const [selectedFloor, setSelectedFloor] = useState(0);
+  const [plan, setPlan] = useState(() => generateMultiFloorPlan(120, 3, 2, 'moderne'));
 
   useEffect(() => {
     if (globalThis.localStorage) {
@@ -167,7 +208,7 @@ export default function App() {
   const planData = useMemo(() => {
     const totalSurface = Number(surface) || 120;
     const bedroomCount = Number(bedrooms) || 1;
-    return generatePlan(totalSurface, bedroomCount, floors, decor);
+    return generateMultiFloorPlan(totalSurface, bedroomCount, floors, decor);
   }, [surface, bedrooms, floors, decor]);
 
   const estimatedCost = useMemo(
@@ -175,7 +216,12 @@ export default function App() {
     [surface, bedrooms, floors, material],
   );
 
-  const onGenerate = () => setPlan(planData);
+  const currentFloor = plan.floors[selectedFloor] || plan.floors[0];
+
+  const onGenerate = () => {
+    setPlan(planData);
+    setSelectedFloor(0);
+  };
 
   const onSave = () => {
     const projects = [
@@ -355,12 +401,29 @@ export default function App() {
             </Pressable>
           </View>
 
+          <View style={styles.floorTabs}>
+            {plan.floors.map((floor, index) => (
+              <Pressable
+                key={floor.id}
+                onPress={() => setSelectedFloor(index)}
+                style={[styles.floorTab, selectedFloor === index && styles.floorTabActive]}
+              >
+                <Text style={[styles.floorTabText, selectedFloor === index && styles.floorTabTextActive]}>{floor.name}</Text>
+              </Pressable>
+            ))}
+          </View>
+
           {viewMode === 'plan' ? (
             <View style={styles.planContainer}>
+              <View style={styles.levelInfo}>
+                <Text style={styles.levelInfoTitle}>{currentFloor.name}</Text>
+                <Text style={styles.levelInfoText}>{currentFloor.surface} m² · {currentFloor.rooms.length} pièces</Text>
+              </View>
+
               <Svg width={PLAN_WIDTH} height={PLAN_HEIGHT} viewBox={`0 0 ${PLAN_WIDTH} ${PLAN_HEIGHT}`}>
                 <Rect x={0} y={0} width={PLAN_WIDTH} height={PLAN_HEIGHT} rx={18} fill="#edf4ff" />
 
-                {plan.rooms.map((room, index) => (
+                {currentFloor.rooms.map((room, index) => (
                   <G key={`${room.name}-${index}`}>
                     <Rect
                       x={room.x}
@@ -457,10 +520,19 @@ export default function App() {
             </View>
           ) : (
             <View style={styles.threeDBox}>
-              <Text style={styles.threeDTitle}>Vue 3D</Text>
-              <View style={styles.threeDHouse}>
-                <View style={styles.threeDFloor} />
-                <View style={styles.threeDFloorTwo} />
+              <Text style={styles.threeDTitle}>Vue 3D des étages</Text>
+              <View style={styles.stack3DContainer}>
+                {plan.floors.map((floor, index) => (
+                  <View
+                    key={floor.id}
+                    style={[
+                      styles.stackFloor,
+                      { marginLeft: index * 18, opacity: selectedFloor === index ? 1 : 0.8 },
+                    ]}
+                  >
+                    <Text style={styles.stackFloorLabel}>{floor.name}</Text>
+                  </View>
+                ))}
               </View>
               <Text style={styles.threeDText}>Style : {STYLES[decor].label}</Text>
               <Text style={styles.threeDText}>Matériau : {MATERIALS[material].label}</Text>
@@ -638,6 +710,46 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 12,
   },
+  floorTabs: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  floorTab: {
+    backgroundColor: '#1d2c46',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  floorTabActive: {
+    backgroundColor: '#7ee081',
+  },
+  floorTabText: {
+    color: '#edf4ff',
+    fontWeight: '700',
+  },
+  floorTabTextActive: {
+    color: '#0f172a',
+  },
+  levelInfo: {
+    backgroundColor: '#12243f',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+  },
+  levelInfoTitle: {
+    color: '#edf4ff',
+    fontWeight: '800',
+    fontSize: 16,
+  },
+  levelInfoText: {
+    color: '#dfeaff',
+    marginTop: 4,
+    fontSize: 12,
+  },
   planContainer: {
     position: 'relative',
     alignItems: 'center',
@@ -668,34 +780,31 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginBottom: 16,
   },
-  threeDHouse: {
+  stack3DContainer: {
     width: 220,
-    height: 140,
+    height: 150,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#dfeafc',
     borderRadius: 16,
     position: 'relative',
   },
-  threeDFloor: {
+  stackFloor: {
+    position: 'absolute',
+    bottom: 18,
     width: 160,
-    height: 70,
+    height: 50,
     backgroundColor: '#7aa7d8',
     borderRadius: 12,
     borderWidth: 2,
     borderColor: '#254466',
-    position: 'absolute',
-    top: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  threeDFloorTwo: {
-    width: 120,
-    height: 52,
-    backgroundColor: '#a7d4ff',
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#254466',
-    position: 'absolute',
-    top: 12,
+  stackFloorLabel: {
+    color: '#112033',
+    fontWeight: '800',
+    fontSize: 12,
   },
   threeDText: {
     color: '#132338',
