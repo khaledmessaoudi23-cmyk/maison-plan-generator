@@ -9,7 +9,7 @@ import {
   Pressable,
   PanResponder,
 } from 'react-native';
-import Svg, { Rect, Text as SvgText, Polyline, G } from 'react-native-svg';
+import Svg, { Rect, Text as SvgText, Polyline, G, Line } from 'react-native-svg';
 import { StatusBar } from 'expo-status-bar';
 
 const PLAN_WIDTH = 340;
@@ -32,18 +32,53 @@ const ROOM_PALETTE = ['#8ecae6', '#bde0fe', '#a2d2ff', '#90e0ef', '#f7d6e0', '#d
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
-const getRoomArea = (surface, bedrooms, index) => {
-  const base = surface / Math.max(1, bedrooms + 2);
-  if (index === 0) return Math.max(22, surface * 0.28);
-  if (index === 1) return Math.max(12, surface * 0.14);
-  if (index === 2) return Math.max(8, surface * 0.1);
-  if (index === 3) return Math.max(7, surface * 0.08);
-  return Math.max(10, base + (index % 2 === 0 ? 4 : 2));
-};
-
 const getEstimatedCost = (surface, bedrooms, floors, material) => {
   const base = surface * (220 + bedrooms * 35) * floors;
   return Math.round(base * MATERIALS[material].multiplier);
+};
+
+const buildDoorsAndWindows = (room, index) => {
+  const doorX = room.x + room.width * 0.15;
+  const doorY = room.y + room.height - 8;
+
+  const doors = [
+    {
+      x1: doorX,
+      y1: doorY,
+      x2: doorX + 18,
+      y2: doorY,
+      type: 'door',
+    },
+  ];
+
+  const windows = [
+    {
+      x1: room.x + 8,
+      y1: room.y + 6,
+      x2: room.x + room.width - 8,
+      y2: room.y + 6,
+      type: 'window',
+    },
+    {
+      x1: room.x + room.width - 6,
+      y1: room.y + 18,
+      x2: room.x + room.width - 6,
+      y2: room.y + room.height - 18,
+      type: 'window',
+    },
+  ];
+
+  if (index % 2 === 0) {
+    doors.push({
+      x1: room.x + room.width - 20,
+      y1: room.y + 10,
+      x2: room.x + room.width - 2,
+      y2: room.y + 10,
+      type: 'door',
+    });
+  }
+
+  return { doors, windows };
 };
 
 const generatePlan = (surface, bedrooms, floors) => {
@@ -74,21 +109,17 @@ const generatePlan = (surface, bedrooms, floors) => {
   const roomBlocks = [];
   let x = 18;
   let y = 16;
-  let row = 0;
 
   rooms.forEach((room, index) => {
-    const maxWidth = 88;
-    const maxHeight = 62;
-    const width = clamp((room.area / Math.max(1, surface)) * 180, 36, maxWidth);
-    const height = clamp((room.area / Math.max(1, surface)) * 140, 26, maxHeight);
+    const width = clamp((room.area / Math.max(1, surface)) * 180, 36, 96);
+    const height = clamp((room.area / Math.max(1, surface)) * 140, 26, 68);
 
     if (x + width > 280) {
       x = 18;
-      y += 70;
-      row += 1;
+      y += 72;
     }
 
-    roomBlocks.push({
+    const block = {
       ...room,
       x,
       y,
@@ -96,6 +127,13 @@ const generatePlan = (surface, bedrooms, floors) => {
       height,
       area: Math.round(room.area),
       fill: ROOM_PALETTE[index % ROOM_PALETTE.length],
+    };
+
+    const { doors, windows } = buildDoorsAndWindows(block, index);
+    roomBlocks.push({
+      ...block,
+      doors,
+      windows,
     });
 
     x += width + 18;
@@ -158,7 +196,7 @@ export default function App() {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.headerBox}>
           <Text style={styles.title}>Maison Plan Pro</Text>
-          <Text style={styles.subtitle}>Création assistée de plans de maison</Text>
+          <Text style={styles.subtitle}>Conception assistée de plans maison</Text>
         </View>
 
         <View style={styles.card}>
@@ -231,7 +269,7 @@ export default function App() {
           <Text style={styles.summaryText}>Étages : {floors}</Text>
           <Text style={styles.summaryText}>Matériau : {MATERIALS[material].label}</Text>
           <Text style={styles.summaryText}>Style : {STYLES[decor].label}</Text>
-          <Text style={styles.summaryText}>Coût : {estimatedCost.toLocaleString()} €</Text>
+          <Text style={styles.summaryText}>Coût estimé : {estimatedCost.toLocaleString()} €</Text>
         </View>
 
         <View style={styles.card}>
@@ -245,6 +283,7 @@ export default function App() {
           <View style={styles.planContainer}>
             <Svg width={PLAN_WIDTH} height={PLAN_HEIGHT} viewBox={`0 0 ${PLAN_WIDTH} ${PLAN_HEIGHT}`}>
               <Rect x={0} y={0} width={PLAN_WIDTH} height={PLAN_HEIGHT} rx={18} fill="#edf4ff" />
+
               {plan.rooms.map((room, index) => (
                 <G key={`${room.name}-${index}`}>
                   <Rect
@@ -257,6 +296,33 @@ export default function App() {
                     stroke="#1d3557"
                     strokeWidth={1.5}
                   />
+
+                  {(room.windows || []).map((window, idx) => (
+                    <Line
+                      key={`win-${idx}`}
+                      x1={window.x1}
+                      y1={window.y1}
+                      x2={window.x2}
+                      y2={window.y2}
+                      stroke="#4d8fd6"
+                      strokeWidth={2}
+                      strokeLinecap="round"
+                    />
+                  ))}
+
+                  {(room.doors || []).map((door, idx) => (
+                    <Line
+                      key={`door-${idx}`}
+                      x1={door.x1}
+                      y1={door.y1}
+                      x2={door.x2}
+                      y2={door.y2}
+                      stroke="#2b3a55"
+                      strokeWidth={2.5}
+                      strokeLinecap="round"
+                    />
+                  ))}
+
                   <SvgText
                     x={room.x + 8}
                     y={room.y + 18}
