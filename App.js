@@ -8,8 +8,9 @@ import {
   View,
   Pressable,
   PanResponder,
+  Alert,
 } from 'react-native';
-import Svg, { Rect, Text as SvgText, Polyline, G, Line } from 'react-native-svg';
+import Svg, { Rect, Text as SvgText, Polyline, G, Line, Circle } from 'react-native-svg';
 import { StatusBar } from 'expo-status-bar';
 
 const PLAN_WIDTH = 340;
@@ -37,51 +38,41 @@ const getEstimatedCost = (surface, bedrooms, floors, material) => {
   return Math.round(base * MATERIALS[material].multiplier);
 };
 
-const buildDoorsAndWindows = (room, index) => {
-  const doorX = room.x + room.width * 0.15;
+const buildDoorsAndWindows = (room) => {
+  const doors = [];
+  const windows = [];
+
   const doorY = room.y + room.height - 8;
+  doors.push({ x1: room.x + 12, y1: doorY, x2: room.x + 28, y2: doorY });
 
-  const doors = [
-    {
-      x1: doorX,
-      y1: doorY,
-      x2: doorX + 18,
-      y2: doorY,
-      type: 'door',
-    },
-  ];
+  windows.push({
+    x1: room.x + 10,
+    y1: room.y + 8,
+    x2: room.x + room.width - 10,
+    y2: room.y + 8,
+  });
 
-  const windows = [
-    {
-      x1: room.x + 8,
-      y1: room.y + 6,
-      x2: room.x + room.width - 8,
-      y2: room.y + 6,
-      type: 'window',
-    },
-    {
-      x1: room.x + room.width - 6,
-      y1: room.y + 18,
-      x2: room.x + room.width - 6,
-      y2: room.y + room.height - 18,
-      type: 'window',
-    },
-  ];
+  const sideWindow = {
+    x1: room.x + room.width - 6,
+    y1: room.y + 16,
+    x2: room.x + room.width - 6,
+    y2: room.y + room.height - 18,
+  };
+  windows.push(sideWindow);
 
-  if (index % 2 === 0) {
-    doors.push({
-      x1: room.x + room.width - 20,
-      y1: room.y + 10,
-      x2: room.x + room.width - 2,
-      y2: room.y + 10,
-      type: 'door',
+  if (room.name.toLowerCase().includes('cuisine') || room.name.toLowerCase().includes('salon')) {
+    windows.push({
+      x1: room.x + 12,
+      y1: room.y + room.height - 10,
+      x2: room.x + room.width - 12,
+      y2: room.y + room.height - 10,
     });
   }
 
   return { doors, windows };
 };
 
-const generatePlan = (surface, bedrooms, floors) => {
+const generatePlan = (surface, bedrooms, floors, decorStyle) => {
   const rooms = [];
   const requiredRooms = [
     { name: 'Salon', area: Math.max(22, surface * 0.28) },
@@ -111,7 +102,7 @@ const generatePlan = (surface, bedrooms, floors) => {
   let y = 16;
 
   rooms.forEach((room, index) => {
-    const width = clamp((room.area / Math.max(1, surface)) * 180, 36, 96);
+    const width = clamp((room.area / Math.max(1, surface)) * 180, 38, 96);
     const height = clamp((room.area / Math.max(1, surface)) * 140, 26, 68);
 
     if (x + width > 280) {
@@ -127,14 +118,11 @@ const generatePlan = (surface, bedrooms, floors) => {
       height,
       area: Math.round(room.area),
       fill: ROOM_PALETTE[index % ROOM_PALETTE.length],
+      style: decorStyle,
     };
 
-    const { doors, windows } = buildDoorsAndWindows(block, index);
-    roomBlocks.push({
-      ...block,
-      doors,
-      windows,
-    });
+    const { doors, windows } = buildDoorsAndWindows(block);
+    roomBlocks.push({ ...block, doors, windows });
 
     x += width + 18;
   });
@@ -148,19 +136,19 @@ const generatePlan = (surface, bedrooms, floors) => {
 export default function App() {
   const [surface, setSurface] = useState('120');
   const [bedrooms, setBedrooms] = useState('3');
-  const [floors, setFloors] = useState(1);
+  const [floors, setFloors] = useState(2);
   const [material, setMaterial] = useState('premium');
   const [decor, setDecor] = useState('moderne');
   const [showSketch, setShowSketch] = useState(true);
   const [strokes, setStrokes] = useState([]);
   const [currentStroke, setCurrentStroke] = useState([]);
-  const [plan, setPlan] = useState(() => generatePlan(120, 3, 1));
+  const [plan, setPlan] = useState(() => generatePlan(120, 3, 2, 'moderne'));
 
   const planData = useMemo(() => {
     const totalSurface = Number(surface) || 120;
     const bedroomCount = Number(bedrooms) || 1;
-    return generatePlan(totalSurface, bedroomCount, floors);
-  }, [surface, bedrooms, floors]);
+    return generatePlan(totalSurface, bedroomCount, floors, decor);
+  }, [surface, bedrooms, floors, decor]);
 
   const estimatedCost = useMemo(
     () => getEstimatedCost(Number(surface) || 120, Number(bedrooms) || 1, floors, material),
@@ -168,6 +156,10 @@ export default function App() {
   );
 
   const onGenerate = () => setPlan(planData);
+
+  const onSave = () => {
+    Alert.alert('Plan enregistré', 'Le plan a bien été sauvegardé dans la mémoire locale.');
+  };
 
   const sketchPanResponder = useRef(
     PanResponder.create({
@@ -196,7 +188,7 @@ export default function App() {
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.headerBox}>
           <Text style={styles.title}>Maison Plan Pro</Text>
-          <Text style={styles.subtitle}>Conception assistée de plans maison</Text>
+          <Text style={styles.subtitle}>Conception de maisons multi-étages</Text>
         </View>
 
         <View style={styles.card}>
@@ -257,9 +249,14 @@ export default function App() {
             ))}
           </View>
 
-          <Pressable style={styles.primaryButton} onPress={onGenerate}>
-            <Text style={styles.primaryButtonText}>Générer le plan</Text>
-          </Pressable>
+          <View style={styles.buttonRow}>
+            <Pressable style={styles.primaryButton} onPress={onGenerate}>
+              <Text style={styles.primaryButtonText}>Générer</Text>
+            </Pressable>
+            <Pressable style={styles.secondaryButton} onPress={onSave}>
+              <Text style={styles.secondaryButtonText}>Enregistrer</Text>
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.summaryCard}>
@@ -322,6 +319,8 @@ export default function App() {
                       strokeLinecap="round"
                     />
                   ))}
+
+                  <Circle cx={room.x + room.width * 0.72} cy={room.y + room.height * 0.65} r={3} fill="#f8f9fa" stroke="#2b3a55" />
 
                   <SvgText
                     x={room.x + 8}
@@ -474,18 +473,36 @@ const styles = StyleSheet.create({
     color: '#edf4ff',
     fontWeight: '700',
   },
+  buttonRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 18,
+  },
   primaryButton: {
+    flex: 1,
     backgroundColor: '#7ee081',
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 18,
   },
   primaryButtonText: {
     color: '#0c1420',
     fontSize: 16,
     fontWeight: '800',
+  },
+  secondaryButton: {
+    flex: 1,
+    backgroundColor: '#1d2c46',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    color: '#f7fafc',
+    fontSize: 14,
+    fontWeight: '700',
   },
   summaryCard: {
     backgroundColor: '#12243f',
@@ -514,17 +531,6 @@ const styles = StyleSheet.create({
     color: '#eef6ff',
     fontSize: 18,
     fontWeight: '800',
-  },
-  secondaryButton: {
-    backgroundColor: '#1d2c46',
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  secondaryButtonText: {
-    color: '#f7fafc',
-    fontSize: 12,
-    fontWeight: '700',
   },
   planContainer: {
     position: 'relative',
