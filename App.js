@@ -17,9 +17,9 @@ const PLAN_WIDTH = 340;
 const PLAN_HEIGHT = 240;
 
 const MATERIALS = {
-  standard: { label: 'Standard', multiplier: 1, accent: '#7ee081' },
-  premium: { label: 'Premium', multiplier: 1.35, accent: '#f6c453' },
-  luxury: { label: 'Luxe', multiplier: 1.75, accent: '#d8a8ff' },
+  standard: { label: 'Standard', multiplier: 1, accent: '#7ee081', glow: '#94f7a0' },
+  premium: { label: 'Premium', multiplier: 1.35, accent: '#f6c453', glow: '#ffd97d' },
+  luxury: { label: 'Luxe', multiplier: 1.75, accent: '#d8a8ff', glow: '#e6c8ff' },
 };
 
 const STYLES = {
@@ -107,12 +107,18 @@ const generateFloorRooms = (surface, bedrooms, floors, levelIndex, decorStyle) =
     rooms.push({ name: 'Salle de bain', area: Math.max(8, surface * 0.1) });
     rooms.push({ name: 'Entrée', area: Math.max(7, surface * 0.08) });
     for (let i = 0; i < Math.min(2, bedrooms); i += 1) {
-      rooms.push({ name: `Chambre ${i + 1}`, area: Math.max(12, surface / Math.max(1, bedrooms + 2) + (i % 2 === 0 ? 4 : 2)) });
+      rooms.push({
+        name: `Chambre ${i + 1}`,
+        area: Math.max(12, surface / Math.max(1, bedrooms + 2) + (i % 2 === 0 ? 4 : 2)),
+      });
     }
   } else {
     const upperBedroomCount = Math.max(1, bedrooms - (levelIndex === 1 ? 1 : 0));
     for (let i = 0; i < upperBedroomCount; i += 1) {
-      rooms.push({ name: `Chambre ${i + 1}`, area: Math.max(12, surface / Math.max(1, bedrooms + 2) + (i % 2 === 0 ? 4 : 2)) });
+      rooms.push({
+        name: `Chambre ${i + 1}`,
+        area: Math.max(12, surface / Math.max(1, bedrooms + 2) + (i % 2 === 0 ? 4 : 2)),
+      });
     }
     rooms.push({ name: 'Salle de bain', area: Math.max(8, surface * 0.1) });
     rooms.push({ name: 'Dressing', area: Math.max(7, surface * 0.08) });
@@ -274,9 +280,14 @@ export default function App() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="light" />
       <ScrollView contentContainerStyle={styles.container}>
-        <View style={styles.headerBox}>
-          <Text style={styles.title}>Maison Plan Pro</Text>
-          <Text style={styles.subtitle}>Conception logicielle de maisons</Text>
+        <View style={styles.topBar}>
+          <View>
+            <Text style={styles.eyebrow}>Architecte intelligent</Text>
+            <Text style={styles.title}>Maison Plan Pro</Text>
+          </View>
+          <View style={styles.pill}>
+            <Text style={styles.pillText}>Premium</Text>
+          </View>
         </View>
 
         <View style={styles.card}>
@@ -373,12 +384,24 @@ export default function App() {
 
         <View style={styles.summaryCard}>
           <Text style={styles.summaryTitle}>Récapitulatif</Text>
-          <Text style={styles.summaryText}>Surface : {surface || '120'} m²</Text>
-          <Text style={styles.summaryText}>Chambres : {bedrooms || '3'}</Text>
-          <Text style={styles.summaryText}>Étages : {floors}</Text>
-          <Text style={styles.summaryText}>Matériau : {MATERIALS[material].label}</Text>
-          <Text style={styles.summaryText}>Style : {STYLES[decor].label}</Text>
-          <Text style={styles.summaryText}>Coût estimé : {estimatedCost.toLocaleString()} €</Text>
+          <View style={styles.metricGrid}>
+            <View style={styles.metricBox}>
+              <Text style={styles.metricLabel}>Surface</Text>
+              <Text style={styles.metricValue}>{surface || '120'} m²</Text>
+            </View>
+            <View style={styles.metricBox}>
+              <Text style={styles.metricLabel}>Chambres</Text>
+              <Text style={styles.metricValue}>{bedrooms || '3'}</Text>
+            </View>
+            <View style={styles.metricBox}>
+              <Text style={styles.metricLabel}>Étages</Text>
+              <Text style={styles.metricValue}>{floors}</Text>
+            </View>
+            <View style={styles.metricBox}>
+              <Text style={styles.metricLabel}>Coût</Text>
+              <Text style={styles.metricValue}>{estimatedCost.toLocaleString()} €</Text>
+            </View>
+          </View>
         </View>
 
         {savedProjects.length > 0 && (
@@ -396,8 +419,8 @@ export default function App() {
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Plan détaillé</Text>
-            <Pressable onPress={() => setShowSketch((v) => !v)} style={styles.secondaryButton}>
-              <Text style={styles.secondaryButtonText}>{showSketch ? 'Masquer croquis' : 'Ajouter croquis'}</Text>
+            <Pressable onPress={() => setShowSketch((v) => !v)} style={styles.inlineButton}>
+              <Text style={styles.inlineButtonText}>{showSketch ? 'Masquer croquis' : 'Ajouter croquis'}</Text>
             </Pressable>
           </View>
 
@@ -547,34 +570,54 @@ export default function App() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#07111f',
+    backgroundColor: '#081621',
   },
   container: {
     padding: 18,
-    paddingBottom: 50,
+    paddingBottom: 60,
   },
-  headerBox: {
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 18,
   },
+  eyebrow: {
+    color: '#8ecae6',
+    letterSpacing: 1.2,
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
   title: {
-    color: '#f7f9fc',
+    color: '#f8fbff',
     fontSize: 30,
     fontWeight: '800',
   },
-  subtitle: {
-    color: '#c9d8ef',
-    fontSize: 15,
-    marginTop: 4,
+  pill: {
+    backgroundColor: 'rgba(246, 196, 83, 0.16)',
+    borderColor: '#f6c453',
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  pillText: {
+    color: '#f6c453',
+    fontWeight: '800',
+    fontSize: 12,
   },
   card: {
-    backgroundColor: '#101a2d',
-    borderRadius: 18,
-    padding: 16,
+    backgroundColor: '#101d2e',
+    borderRadius: 22,
+    padding: 18,
     marginBottom: 16,
     shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.04)',
   },
   label: {
     color: '#edf4ff',
@@ -583,11 +626,14 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   input: {
-    backgroundColor: '#f4f6fb',
-    borderRadius: 12,
+    backgroundColor: '#f4f7fb',
+    borderRadius: 14,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
+    color: '#0f172a',
+    borderWidth: 1,
+    borderColor: 'rgba(160,180,200,0.45)',
   },
   row: {
     flexDirection: 'row',
@@ -596,14 +642,17 @@ const styles = StyleSheet.create({
   },
   toggle: {
     flex: 1,
-    backgroundColor: '#1d2c46',
-    borderRadius: 10,
+    backgroundColor: '#1c2b3d',
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   toggleActive: {
-    backgroundColor: '#6ee7b7',
+    backgroundColor: '#7ee081',
+    borderColor: '#c8f7cf',
   },
   toggleText: {
     color: '#f4f7ff',
@@ -619,9 +668,9 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   chip: {
-    backgroundColor: '#1d2c46',
+    backgroundColor: '#1b2d43',
     borderWidth: 1.5,
-    borderRadius: 10,
+    borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
     marginRight: 8,
@@ -643,10 +692,13 @@ const styles = StyleSheet.create({
   primaryButton: {
     flex: 1,
     backgroundColor: '#7ee081',
-    borderRadius: 12,
+    borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#7ee081',
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
   },
   primaryButtonText: {
     color: '#0c1420',
@@ -655,11 +707,13 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     flex: 1,
-    backgroundColor: '#1d2c46',
-    borderRadius: 12,
+    backgroundColor: '#1a2d49',
+    borderRadius: 14,
     paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
   },
   secondaryButtonText: {
     color: '#f7fafc',
@@ -667,21 +721,40 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   summaryCard: {
-    backgroundColor: '#12243f',
-    borderRadius: 16,
+    backgroundColor: 'linear-gradient(135deg, #12243f, #0d1d2a)',
+    borderRadius: 18,
     padding: 16,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.04)',
   },
   summaryTitle: {
     color: '#f8fbff',
     fontSize: 20,
     fontWeight: '800',
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  summaryText: {
-    color: '#dfeaff',
-    fontSize: 15,
-    marginBottom: 4,
+  metricGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  metricBox: {
+    width: '48%',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+  },
+  metricLabel: {
+    color: '#cfe2ff',
+    fontSize: 12,
+    marginBottom: 6,
+  },
+  metricValue: {
+    color: '#f8fbff',
+    fontSize: 18,
+    fontWeight: '800',
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -693,12 +766,22 @@ const styles = StyleSheet.create({
     color: '#eef6ff',
     fontSize: 18,
     fontWeight: '800',
-    marginBottom: 8,
+  },
+  inlineButton: {
+    backgroundColor: '#1d2c46',
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+  },
+  inlineButtonText: {
+    color: '#f7fafc',
+    fontSize: 12,
+    fontWeight: '700',
   },
   savedItem: {
     backgroundColor: '#183253',
     borderRadius: 10,
-    padding: 10,
+    padding: 12,
     marginTop: 8,
   },
   savedItemTitle: {
@@ -723,9 +806,12 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     marginRight: 8,
     marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   floorTabActive: {
     backgroundColor: '#7ee081',
+    borderColor: '#d8ffdb',
   },
   floorTabText: {
     color: '#edf4ff',
@@ -736,9 +822,11 @@ const styles = StyleSheet.create({
   },
   levelInfo: {
     backgroundColor: '#12243f',
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 10,
     marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
   },
   levelInfoTitle: {
     color: '#edf4ff',
@@ -758,6 +846,8 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 10,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
   },
   sketchOverlay: {
     position: 'absolute',
@@ -773,6 +863,8 @@ const styles = StyleSheet.create({
     padding: 20,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.06)',
   },
   threeDTitle: {
     color: '#132338',
